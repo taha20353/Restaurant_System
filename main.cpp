@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <cmath>
 #include <list>
-#include <climits>
 using namespace std;
 
 enum class OrderType { NORMAL, VEGAN, VIP };
@@ -20,9 +19,9 @@ struct Order {
 	double money; // used for VIP priority
 
 	// runtime
-	int ST = -1;    // start time
-	int FT = -1;    // finish time
-	int WT = -1;    // waiting time
+	int ST = -1;  // start time
+	int FT = -1;  // finish time
+	int WT = -1;  // waiting time
 	int STime = -1; // service time
 	bool autoPromoted = false;
 
@@ -89,7 +88,7 @@ int main() {
 		if(a->RT!=b->RT) return a->RT < b->RT;
 		return a->id < b->id;
 	});
-		
+
 	// create chefs
 	vector<ChefPtr> chefs;
 	int cid = 1;
@@ -103,6 +102,7 @@ int main() {
 	queue<OrderPtr> veganQ;
 
 	list<OrderPtr> finished; // store finished orders
+    vector<OrderPtr> canceledOrders; // store canceledÂ orders
 
 	// simulation state
 	int time = 0;
@@ -131,7 +131,40 @@ int main() {
 				++autoPromotedCount;
 			} else normalQ.push(o);
 		}
+    double cancelProb = 0.03; 
 
+// random cancel for normal queue
+int nSize = (int)normalQ.size();
+for(int i = 0; i < nSize; ++i){
+    auto o = normalQ.front(); normalQ.pop();
+    if((double)rand()/RAND_MAX < cancelProb){
+        canceledOrders.push_back(o);
+    } else {
+        normalQ.push(o);
+    }
+}
+
+// random cancel for vegan queue
+int vSize = (int)veganQ.size();
+for(int i = 0; i < vSize; ++i){
+    auto o = veganQ.front(); veganQ.pop();
+    if((double)rand()/RAND_MAX < cancelProb){
+        canceledOrders.push_back(o);
+    } else {
+        veganQ.push(o);
+    }
+}
+
+// random cancel for vip queue
+int vipSize = (int)vipQ.size();
+for(int i = 0; i < vipSize; ++i){
+    auto o = vipQ.top(); vipQ.pop();
+    if((double)rand()/RAND_MAX < cancelProb){
+        canceledOrders.push_back(o);
+    } else {
+        vipQ.push(o);
+}
+}
 		// try to assign orders to free chefs at this time
 		for(auto &chef : chefs){
 			if(chef->nextFree > time) continue; // busy
@@ -157,7 +190,6 @@ int main() {
 			if(chosen){
 				chosen->ST = time;
 				chosen->STime = max(1, (int)ceil(chosen->size / chef->speed));
-				
 				chosen->WT = chosen->ST - chosen->RT;
 				chosen->FT = time + chosen->STime;
 
@@ -192,6 +224,13 @@ int main() {
 
 	// prepare output: sort finished by FT
 	vector<OrderPtr> done(finished.begin(), finished.end());
+    // add canceled orders to the output list
+    // add canceled orders to the output list
+for(auto &o : canceledOrders){
+    o->ST = -1;       // mark as canceled
+    o->FT = o->RT;    // canceled at arrival time (or time you prefer)
+    done.push_back(o);
+}
 	sort(done.begin(), done.end(), [](const OrderPtr &a, const OrderPtr &b){
 		if(a->FT != b->FT) return a->FT < b->FT;
 		return a->id < b->id;
@@ -216,11 +255,12 @@ int main() {
 	int nN=0,nVg=0,nVp=0;
 	for(auto &c:chefs){ if(c->type==ChefType::NORMAL) ++nN; else if(c->type==ChefType::VEGAN) ++nVg; else ++nVp; }
 	ofs << "Normal="<<nN<<" Vegan="<<nVg<<" VIP="<<nVp<<"\n";
-	ofs << "Average Waiting Time: " << (cnt? totalWT/cnt : 0) << "\n";
-	ofs << "Average Service Time: " << (cnt? totalST/cnt : 0) << "\n";
-	ofs << "% Auto-promoted: " << (done.size()? (100.0*autoPromotedCount/done.size()) : 0) << "\n";
-
+	ofs << "Average_Waiting_Time: " << (cnt? totalWT/cnt : 0) << "\n";
+	ofs << "Average_Service_Time: " << (cnt? totalST/cnt : 0) << "\n";
+	ofs << "%_Auto-promoted: " << (done.size()? (100.0*autoPromotedCount/done.size()) : 0) << "\n";
+    ofs << "Canceled_Orders: " << canceledOrders.size() << "\n";
+    ofs.close();
 	cout << "Simulation completed. Output written to output.txt\n";
-	return 0;
-}
+    return 0;
 
+}
